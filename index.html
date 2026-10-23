@@ -163,9 +163,14 @@
 
 <!-- Firebase & Game Engine Logic -->
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+    // =========================================================================
+    // 🗄️ SUPABASE CONFIGURATION - ISI URL & KEY DI SINI!
+    // =========================================================================
+    const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co'; 
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdXVzcHd1Znd6Y3VrZHVyaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MTg5MDcsImV4cCI6MjEwODI5NDkwN30.Ej-jim68n4OPNZqDMVN3OLJS7sgVXLyM75A8KWDoNec'; 
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // =========================================================================
     // 🎨 AREA KUSTOMISASI ASET (GAMBAR & MUSIK) - ISI URL DI SINI!
@@ -206,27 +211,17 @@
         enemyImg.src = ENEMY_IMAGE_URL;
     }
 
-    // --- Firebase Initialization ---
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-    let db, auth;
-    let firebaseReady = false;
-    let appId = typeof __app_id !== 'undefined' ? __app_id : 'bounce-infinite-v2';
+    // --- Supabase Initialization ---
+    let supabase = null;
+    let dbReady = false;
 
-    try {
-        if(Object.keys(firebaseConfig).length > 0) {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            firebaseReady = true;
-        }
-    } catch(e) { console.error("Firebase init failed", e); }
-
-    async function authenticateUser() {
-        if (!firebaseReady) return null;
+    if (SUPABASE_URL !== "" && SUPABASE_KEY !== "") {
         try {
-            const userCredential = await signInAnonymously(auth);
-            return userCredential.user;
-        } catch (error) { return null; }
+            supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+            dbReady = true;
+        } catch (e) {
+            console.error("Supabase init failed", e);
+        }
     }
 
     // --- ENGINE SETUP ---
@@ -681,7 +676,7 @@
         await saveAndLoadLeaderboard();
     }
 
-    // --- FIREBASE LEADERBOARD LOGIC ---
+    // --- SUPABASE LEADERBOARD LOGIC ---
     async function saveAndLoadLeaderboard() {
         const lbList = document.getElementById('leaderboard-list');
         const loading = document.getElementById('leaderboard-loading');
@@ -689,27 +684,31 @@
         lbList.classList.add('hidden');
         loading.classList.remove('hidden');
 
-        if (firebaseReady) {
+        if (dbReady) {
             try {
-                const user = await authenticateUser();
-                if (user) {
-                    const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                // 1. Insert Skor Baru ke tabel 'leaderboard'
+                const { error: insertError } = await supabase
+                    .from('leaderboard')
+                    .insert([{ name: playerName, score: state.score }]);
                     
-                    await addDoc(lbRef, { name: playerName, score: state.score, timestamp: Date.now() });
+                if (insertError) throw insertError;
 
-                    const snapshot = await getDocs(lbRef);
-                    let allScores = [];
-                    snapshot.forEach(doc => { allScores.push(doc.data()); });
+                // 2. Ambil Top 50 Skor
+                const { data: topScores, error: fetchError } = await supabase
+                    .from('leaderboard')
+                    .select('name, score')
+                    .order('score', { ascending: false })
+                    .limit(50);
 
-                    allScores.sort((a, b) => b.score - a.score);
-                    const topScores = allScores.slice(0, 50);
+                if (fetchError) throw fetchError;
 
-                    renderLeaderboardUI(topScores);
-                }
+                renderLeaderboardUI(topScores);
             } catch (e) {
+                console.error("Supabase Error:", e);
                 renderLocalLeaderboard();
             }
         } else {
+            // Fallback jika tidak ada koneksi / URL kosong
             renderLocalLeaderboard();
         }
         
