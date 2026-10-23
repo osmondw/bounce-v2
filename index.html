@@ -131,24 +131,34 @@
     async function handleSignalingData(data) {
         if (!peerConnection) initWebRTC();
 
-        if (data.type === 'join') {
-            dataChannel = peerConnection.createDataChannel('fileTransfer');
-            setupDataChannel();
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer.sdp } });
-        } 
-        else if (data.type === 'offer') {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', sdp: answer.sdp } });
-        } 
-        else if (data.type === 'answer') {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
-        } 
-        else if (data.type === 'ice-candidate') {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        try {
+            if (data.type === 'join') {
+                dataChannel = peerConnection.createDataChannel('fileTransfer');
+                setupDataChannel();
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer.sdp } });
+            } 
+            else if (data.type === 'offer') {
+                // Cegah error jika state tidak stabil
+                if (peerConnection.signalingState !== 'stable') return; 
+                
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', sdp: answer.sdp } });
+            } 
+            else if (data.type === 'answer') {
+                // FIX: Hanya proses answer jika PC sedang menunggu jawaban (have-local-offer)
+                if (peerConnection.signalingState !== 'have-local-offer') return; 
+                
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+            } 
+            else if (data.type === 'ice-candidate') {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        } catch (error) {
+            console.error("WebRTC State Error diabaikan:", error);
         }
     }
 
