@@ -2,299 +2,768 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P File Share (WebRTC)</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bounce Infinite 2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
-        input, button { padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; width: 90%; font-size: 16px; box-sizing: border-box; }
-        button { background: #0070f3; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button:hover { background: #005bb5; }
-        .btn-danger { background: #dc3545; }
-        .btn-danger:hover { background: #c82333; }
-        .btn-copy { background: #28a745; }
-        .btn-copy:hover { background: #218838; }
-        .btn-download { background: #17a2b8; width: auto; padding: 5px 15px; margin: 0; font-size: 14px; }
-        .btn-download:hover { background: #138496; }
-        #progressContainer { display: none; margin-top: 20px; }
-        progress { width: 100%; height: 20px; }
-        #status { margin-top: 10px; font-weight: bold; color: #333; }
-        #linkContainer { display: none; margin: 15px 0; padding: 10px; background: #e9ecef; border-radius: 5px; word-break: break-all; }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            touch-action: none; /* Mencegah layar bergeser saat disentuh di HP */
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #1e293b, #0f172a);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
         
-        /* Gaya untuk Wadah Riwayat File */
-        #historySection { display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: left; }
-        #historySection h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        #fileList { list-style-type: none; padding: 0; margin: 0; }
-        #fileList li { background: #f8f9fa; margin-bottom: 10px; padding: 12px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
-        .file-info { display: flex; align-items: center; gap: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* UI Layers */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.9);
+            z-index: 50;
+            backdrop-filter: blur(5px);
+        }
+
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+        .control-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            color: white;
+            user-select: none;
+            backdrop-filter: blur(5px);
+        }
+        .control-btn:active {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+        .left-controls { display: flex; gap: 20px; }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: flex; }
+        }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>Kirim File P2P</h2>
+<div id="game-container">
     
-    <div id="setupSection">
-        <p id="instructionText">Buat link untuk mulai membagikan file secara langsung.</p>
-        <button id="createLinkBtn" onclick="createRoom()">Buat Link Share</button>
+    <!-- 1. Landing Page -->
+    <div id="landing-page" class="overlay">
+        <h1 class="text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
+        <h2 class="text-3xl font-bold text-yellow-400 mb-8">INFINITE 2.0</h2>
+        
+        <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md text-center">
+            <p class="text-slate-300 mb-6">Lari dari kamera! Masukkan nama Anda untuk memulai.</p>
+            <input type="text" id="player-name" placeholder="Nama Pemain" maxlength="15"
+                class="w-full px-4 py-3 rounded-lg bg-slate-900 border border-slate-600 text-white focus:outline-none focus:border-red-500 mb-6 text-center text-xl font-bold">
+            <button id="btn-start" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                MULAI BERMAIN
+            </button>
+        </div>
+        
+        <div class="mt-6 text-slate-400 text-sm max-w-lg text-center px-4 space-y-2">
+            <p><b>ATURAN BARU:</b> Layar akan terus bergerak ke kanan. Jangan sampai tertinggal atau kamu akan mati!</p>
+            <p>Bola memantul otomatis. Diam di tempat meningkatkan kekuatan pantulan. <b>Tahan tombol ATAS (Up) saat bola mendarat untuk melompat lebih tinggi!</b></p>
+        </div>
     </div>
 
-    <div id="linkContainer">
-        <p><strong>Link Akses:</strong></p>
-        <p id="shareLinkText"></p>
-        <button class="btn-copy" onclick="copyLink()">Salin Link</button>
+    <!-- 2. Game UI Overlay -->
+    <div id="game-ui">
+        <h1 class="text-4xl font-black text-yellow-400 drop-shadow-md">Rings: <span id="score-display">0</span></h1>
+        <p class="text-sm font-bold text-white mt-1">Bounce Power: <span id="bounce-power-display" class="text-green-400">Lv. 0</span></p>
     </div>
 
-    <div id="fileSection" style="display:none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-        <p>Status: <span id="status">Menunggu penerima membuka link...</span></p>
-        <input type="file" id="fileInput">
-        <button onclick="sendFile()">Kirim File</button>
-        <button class="btn-danger" onclick="disconnectAll()">Tutup Koneksi / Nonaktifkan Link</button>
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" width="1000" height="600"></canvas>
+    
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <div class="left-controls">
+            <div class="control-btn" id="btn-left">←</div>
+            <div class="control-btn" id="btn-right">→</div>
+        </div>
+        <!-- Tambahan Tombol Jump (Atas) untuk HP -->
+        <div class="control-btn bg-yellow-500/30 border-yellow-500/50 text-yellow-300" id="btn-up">↑</div>
     </div>
 
-    <div id="progressContainer">
-        <p id="progressText">Mentransfer: 0%</p>
-        <progress id="progressBar" value="0" max="100"></progress>
+    <!-- 3. Game Over & Leaderboard Page -->
+    <div id="game-over-page" class="overlay hidden">
+        <h1 class="text-5xl font-black text-red-600 mb-2">GAME OVER</h1>
+        <h2 class="text-2xl text-white mb-6">Skor Kamu: <span id="final-score" class="text-yellow-400 font-bold">0</span></h2>
+        
+        <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md overflow-hidden flex flex-col h-[350px]">
+            <div class="bg-slate-900 py-3 text-center border-b border-slate-700 text-yellow-400 font-bold tracking-widest">
+                GLOBAL LEADERBOARD
+            </div>
+            
+            <div id="leaderboard-loading" class="flex-1 flex justify-center items-center text-slate-400">
+                Memuat skor...
+            </div>
+            
+            <ul id="leaderboard-list" class="flex-1 overflow-y-auto scrollbar-hide p-0 m-0 hidden">
+                <!-- Leaderboard items will be injected here -->
+            </ul>
+        </div>
+        
+        <button id="btn-restart" class="mt-8 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-10 rounded-lg transition-all shadow-lg shadow-blue-500/50">
+            MAIN LAGI
+        </button>
     </div>
+
 </div>
 
-<!-- Wadah / Space untuk file yang dikirim dan diterima -->
-<div id="historySection">
-    <h3>Riwayat File Bersama</h3>
-    <ul id="fileList">
-        <!-- Daftar file akan muncul di sini -->
-    </ul>
-</div>
+<!-- Firebase & Game Engine Logic -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-<script>
-    // --- KONFIGURASI SUPABASE ---
-    const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co'; 
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdXVzcHd1Znd6Y3VrZHVyaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MTg5MDcsImV4cCI6MjEwODI5NDkwN30.Ej-jim68n4OPNZqDMVN3OLJS7sgVXLyM75A8KWDoNec'; 
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // =========================================================================
+    // 🎨 AREA KUSTOMISASI ASET (GAMBAR & MUSIK) - ISI URL DI SINI!
+    // =========================================================================
+    // Kosongkan URL ("") jika Anda ingin menggunakan gambar/bola bawaan script.
+    // Jika diisi, script akan otomatis menggunakan aset yang Anda berikan.
+    
+    const CUSTOM_BGM_URL = ""; 
+    // Contoh: "https://www.bensound.com/bensound-music/bensound-actionable.mp3"
+    
+    const PLAYER_IMAGE_URL = ""; 
+    // Contoh: "https://upload.wikimedia.org/wikipedia/commons/e/e0/SNice.svg"
+    
+    const ENEMY_IMAGE_URL = ""; 
+    // Contoh: "https://cdn-icons-png.flaticon.com/512/1215/1215160.png"
+    
+    // =========================================================================
 
-    // --- VARIABEL GLOBAL ---
-    let peerConnection;
-    let dataChannel;
-    let roomChannel;
-    let receiveBuffer = [];
-    let receivedSize = 0;
-    let incomingFileInfo = null;
-    let inactivityTimer = null;
-    const INACTIVITY_LIMIT = 30 * 60 * 1000; 
+    // --- Sistem Pemuatan Aset ---
+    let bgmAudio = null;
+    if (CUSTOM_BGM_URL !== "") {
+        bgmAudio = new Audio(CUSTOM_BGM_URL);
+        bgmAudio.loop = true;
+        bgmAudio.volume = 0.5;
+    }
 
-    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const playerImg = new Image();
+    let playerImgLoaded = false;
+    if (PLAYER_IMAGE_URL !== "") {
+        playerImg.onload = () => { playerImgLoaded = true; };
+        playerImg.src = PLAYER_IMAGE_URL;
+    }
 
-    window.onload = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        if (roomId) {
-            document.getElementById('setupSection').style.display = 'none';
-            joinRoom(roomId);
+    const enemyImg = new Image();
+    let enemyImgLoaded = false;
+    if (ENEMY_IMAGE_URL !== "") {
+        enemyImg.onload = () => { enemyImgLoaded = true; };
+        enemyImg.src = ENEMY_IMAGE_URL;
+    }
+
+    // --- Firebase Initialization ---
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    let db, auth;
+    let firebaseReady = false;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'bounce-infinite-v2';
+
+    try {
+        if(Object.keys(firebaseConfig).length > 0) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            firebaseReady = true;
         }
+    } catch(e) { console.error("Firebase init failed", e); }
+
+    async function authenticateUser() {
+        if (!firebaseReady) return null;
+        try {
+            const userCredential = await signInAnonymously(auth);
+            return userCredential.user;
+        } catch (error) { return null; }
+    }
+
+    // --- ENGINE SETUP ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const landingPage = document.getElementById('landing-page');
+    const gameUI = document.getElementById('game-ui');
+    const gameOverPage = document.getElementById('game-over-page');
+    const mobileControls = document.getElementById('mobile-controls');
+    
+    const playerNameInput = document.getElementById('player-name');
+    const btnStart = document.getElementById('btn-start');
+    const btnRestart = document.getElementById('btn-restart');
+    const scoreDisplay = document.getElementById('score-display');
+    const bouncePowerDisplay = document.getElementById('bounce-power-display');
+    const finalScoreDisplay = document.getElementById('final-score');
+    
+    let localLeaderboard = [ { name: "Creator", score: 100 }, { name: "ProRunner", score: 50 } ];
+    let playerName = "Player";
+    let gameLoopId;
+
+    // --- CONFIG & STATE ---
+    const config = {
+        gravity: 0.6,
+        friction: 0.85,
+        moveSpeed: 16,        
+        maxSpeed: 14,         
+        baseJump: -10,        // Kekuatan lompatan standar
+        bounceIncrement: -1.5,// Tambahan tinggi pantulan jika diam di tempat
+        upBoost: -5,          // LOMPATAN EKSTRA jika menekan tombol panah ATAS
+        maxBounces: 5,        
+        ballRadius: 15,
+        floorY: 550,
+        autoScrollSpeed: 3.5  // KECEPATAN KAMERA MENDORONG LAYAR KE KANAN
     };
 
-    function resetActivityTimer() {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-            alert('Sesi telah ditutup otomatis karena tidak ada aktivitas selama 30 menit.');
-            disconnectAll();
-        }, INACTIVITY_LIMIT);
-    }
+    let state = {
+        score: 0,
+        cameraX: 0,
+        isGameOver: false,
+        isPlaying: false,
+        bounceMultiplier: 0
+    };
 
-    function createRoom() {
-        const roomId = Math.random().toString(36).substring(2, 10);
-        const shareLink = window.location.origin + window.location.pathname + '?room=' + roomId;
+    const keys = { left: false, right: false, up: false };
+
+    let player = { x: 0, y: 0, vx: 0, vy: 0, radius: config.ballRadius };
+    let platforms = [], spikes = [], rings = [], enemies = [];
+    let latestGenX = 0;
+
+    // --- INPUT HANDLING ---
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true;
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = false;
+    });
+
+    const bindTouch = (id, keyName) => {
+        const btn = document.getElementById(id);
+        if(!btn) return;
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+    };
+    bindTouch('btn-left', 'left');
+    bindTouch('btn-right', 'right');
+    bindTouch('btn-up', 'up');
+
+    // --- PROCEDURAL GENERATION ---
+    function initWorld() {
+        platforms = []; spikes = []; rings = []; enemies = [];
+        latestGenX = 500;
         
-        document.getElementById('createLinkBtn').style.display = 'none';
-        document.getElementById('instructionText').style.display = 'none';
-        document.getElementById('linkContainer').style.display = 'block';
-        document.getElementById('shareLinkText').innerText = shareLink;
-        document.getElementById('fileSection').style.display = 'block';
-
-        connectSupabase(roomId, true);
-        resetActivityTimer();
+        player = { x: 300, y: 300, vx: 0, vy: 0, radius: config.ballRadius };
+        
+        state.score = 0;
+        state.cameraX = 0;
+        state.bounceMultiplier = 0;
+        state.isGameOver = false;
+        state.isPlaying = true;
+        
+        scoreDisplay.innerText = "0";
+        updateBounceUI();
     }
 
-    function copyLink() {
-        navigator.clipboard.writeText(document.getElementById('shareLinkText').innerText);
-        alert('Link disalin!');
-    }
-
-    function joinRoom(roomId) {
-        document.getElementById('fileSection').style.display = 'block';
-        document.getElementById('status').innerText = 'Menghubungkan ke pengirim...';
-        connectSupabase(roomId, false);
-        resetActivityTimer();
-    }
-
-    function connectSupabase(roomId, isHost) {
-        roomChannel = supabaseClient.channel('room-' + roomId, {
-            config: { broadcast: { self: false } }
-        });
-
-        roomChannel.on('broadcast', { event: 'signal' }, ({ payload }) => handleSignalingData(payload))
-                   .subscribe(async (status) => {
-                       if (status === 'SUBSCRIBED' && !isHost) {
-                           roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'join' } });
-                       }
-                   });
-    }
-
-    async function handleSignalingData(data) {
-        if (!peerConnection) initWebRTC();
-
-        try {
-            if (data.type === 'join') {
-                dataChannel = peerConnection.createDataChannel('fileTransfer');
-                setupDataChannel();
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer.sdp } });
-            } 
-            else if (data.type === 'offer') {
-                if (peerConnection.signalingState !== 'stable') return; 
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', sdp: answer.sdp } });
-            } 
-            else if (data.type === 'answer') {
-                if (peerConnection.signalingState !== 'have-local-offer') return; 
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
-            } 
-            else if (data.type === 'ice-candidate') {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-        } catch (error) {
-            console.error("WebRTC Error:", error);
-        }
-    }
-
-    function initWebRTC() {
-        peerConnection = new RTCPeerConnection(rtcConfig);
-        peerConnection.onicecandidate = event => {
-            if (event.candidate) {
-                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'ice-candidate', candidate: event.candidate } });
-            }
-        };
-        peerConnection.ondatachannel = event => {
-            dataChannel = event.channel;
-            setupDataChannel();
-        };
-    }
-
-    function setupDataChannel() {
-        dataChannel.binaryType = 'arraybuffer';
-        dataChannel.onopen = () => {
-            document.getElementById('status').innerText = "✅ Perangkat Terhubung!";
-            document.getElementById('status').style.color = "green";
-            resetActivityTimer();
-        };
-
-        dataChannel.onmessage = event => {
-            resetActivityTimer(); 
-            if (typeof event.data === 'string') {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'header') {
-                    incomingFileInfo = msg;
-                    receiveBuffer = [];
-                    receivedSize = 0;
-                    document.getElementById('progressContainer').style.display = 'block';
-                    document.getElementById('progressBar').value = 0;
-                } else if (msg.type === 'done') {
-                    // Poin 1 & 2: Buat file dan masukkan ke wadah riwayat
-                    const blob = new Blob(receiveBuffer);
-                    addFileToHistory(incomingFileInfo.name, blob, 'received');
-                    document.getElementById('progressText').innerText = "Penerimaan Selesai!";
-                    setTimeout(() => document.getElementById('progressContainer').style.display = 'none', 3000);
-                } else if (msg.type === 'disconnect') {
-                    alert("Koneksi diputus oleh perangkat lain.");
-                    disconnectAll(false);
-                }
-            } else {
-                receiveBuffer.push(event.data);
-                receivedSize += event.data.byteLength;
-                const percent = Math.round((receivedSize / incomingFileInfo.size) * 100);
-                document.getElementById('progressBar').value = percent;
-                document.getElementById('progressText').innerText = `Menerima: ${percent}%`;
-            }
-        };
-    }
-
-    function sendFile() {
-        const file = document.getElementById('fileInput').files[0];
-        if (!file) return alert('Pilih file dulu!');
-        if (!dataChannel || dataChannel.readyState !== 'open') return alert('Koneksi P2P belum siap!');
-
-        resetActivityTimer();
-        document.getElementById('progressContainer').style.display = 'block';
-        dataChannel.send(JSON.stringify({ type: 'header', name: file.name, size: file.size }));
-
-        const chunkSize = 16384;
-        let offset = 0;
-        const reader = new FileReader();
-
-        reader.onload = e => {
-            dataChannel.send(e.target.result);
-            offset += e.target.result.byteLength;
-            const percent = Math.round((offset / file.size) * 100);
-            document.getElementById('progressBar').value = percent;
-            document.getElementById('progressText').innerText = `Mengirim: ${percent}%`;
-
-            if (offset < file.size) {
-                readSlice(offset);
-            } else {
-                dataChannel.send(JSON.stringify({ type: 'done' }));
-                document.getElementById('progressText').innerText = "Pengiriman Sukses!";
+    function generateChunk(targetX) {
+        while (latestGenX < targetX + 2000) {
+            let chunkWidth = Math.random() * 300 + 200;
+            let startX = latestGenX;
+            
+            // Generate Platform Gantung
+            if (Math.random() > 0.5) {
+                let pWidth = Math.random() * 150 + 100;
+                let pHeight = 350 + (Math.random() * 100 - 50);
+                platforms.push({ x: startX + 50, y: pHeight, w: pWidth, h: 20 });
                 
-                // Poin 2: Tampilkan di wadah riwayat bahwa file sukses terkirim
-                addFileToHistory(file.name, file, 'sent');
-                setTimeout(() => document.getElementById('progressContainer').style.display = 'none', 3000);
-                resetActivityTimer();
+                if(Math.random() > 0.3) {
+                    rings.push({ x: startX + 50 + pWidth/2, y: pHeight - 40, r: 15, collected: false });
+                }
             }
-        };
 
-        const readSlice = o => {
-            const slice = file.slice(offset, o + chunkSize);
-            reader.readAsArrayBuffer(slice);
-        };
-        readSlice(0);
+            // Generate Ring di Lantai
+            if (Math.random() > 0.5) {
+                rings.push({ x: startX + chunkWidth / 2, y: config.floorY - 60, r: 15, collected: false });
+            }
+
+            // Generate Duri di Lantai
+            if (Math.random() > 0.4 && startX > 1000) {
+                let spikeWidth = 40 + Math.random() * 40;
+                spikes.push({ x: startX + chunkWidth/2, y: config.floorY - 20, w: spikeWidth, h: 20 });
+            }
+
+            // Generate Musuh
+            if (startX > 1500) {
+                if (Math.random() > 0.6) {
+                    enemies.push({ 
+                        type: 'vertical', x: startX + 100, y: config.floorY - 100, 
+                        minY: config.floorY - 250, maxY: config.floorY - 30, 
+                        speed: 3 + Math.random() * 2, r: 15, dir: 1 
+                    });
+                } else if (Math.random() > 0.7) {
+                    enemies.push({ 
+                        type: 'horizontal', x: startX + chunkWidth, 
+                        y: config.floorY - 30 - Math.random() * 100, 
+                        speed: -(2 + Math.random() * 2), r: 15 
+                    });
+                }
+            }
+            latestGenX = startX + chunkWidth;
+        }
     }
 
-    // --- FUNGSI BARU: Menambahkan File ke Wadah Riwayat ---
-    function addFileToHistory(fileName, fileOrBlob, type) {
-        document.getElementById('historySection').style.display = 'block';
-        const list = document.getElementById('fileList');
-        const li = document.createElement('li');
-        
-        if (type === 'received') {
-            const url = window.URL.createObjectURL(fileOrBlob);
-            li.innerHTML = `
-                <div class="file-info">📥 <strong>${fileName}</strong></div> 
-                <a href="${url}" download="${fileName}"><button class="btn-download">Unduh</button></a>
-            `;
+    function garbageCollect() {
+        let cutoff = state.cameraX - 500; // Hapus yang sudah terlewat kamera jauh
+        platforms = platforms.filter(p => p.x + p.w > cutoff);
+        spikes = spikes.filter(s => s.x + s.w > cutoff);
+        rings = rings.filter(r => !r.collected && r.x > cutoff);
+        enemies = enemies.filter(e => e.type === 'horizontal' ? e.x > cutoff - 2000 : e.x > cutoff); 
+    }
+
+    function checkRectCollision(px, py, pr, rect) {
+        return (px + pr > rect.x && px - pr < rect.x + rect.w &&
+                py + pr > rect.y && py - pr < rect.y + rect.h);
+    }
+
+    function updateBounceUI() {
+        bouncePowerDisplay.innerText = `Lv. ${state.bounceMultiplier}`;
+        if(state.bounceMultiplier === config.maxBounces) {
+            bouncePowerDisplay.className = "text-red-500 font-black animate-pulse";
+        } else if (state.bounceMultiplier > 0) {
+            bouncePowerDisplay.className = "text-yellow-400 font-bold";
         } else {
-            li.innerHTML = `
-                <div class="file-info">📤 <strong>${fileName}</strong></div> 
-                <span style="color: green; font-size: 0.9em; font-weight: bold;">✓ Terkirim</span>
-            `;
+            bouncePowerDisplay.className = "text-green-400";
         }
-        
-        // Memasukkan file terbaru di urutan paling atas
-        list.insertBefore(li, list.firstChild);
     }
 
-    function disconnectAll(broadcastDisconnect = true) {
-        if (broadcastDisconnect && dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify({ type: 'disconnect' }));
+    // --- GAME LOOP UPDATE ---
+    function update() {
+        if (state.isGameOver || !state.isPlaying) return;
+
+        // 1. AUTO-SCROLLING MECHANIC (Memaksa layar jalan ke kanan)
+        // Kecepatan kamera perlahan naik sering bertambahnya skor untuk menantang pemain
+        let currentScrollSpeed = config.autoScrollSpeed + (state.score * 0.05);
+        state.cameraX += currentScrollSpeed;
+
+        if (latestGenX < player.x + 2000) {
+            generateChunk(Math.max(player.x, state.cameraX));
+            garbageCollect();
         }
-        if (peerConnection) peerConnection.close();
-        if (roomChannel) supabaseClient.removeChannel(roomChannel); 
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        
-        window.location.href = window.location.origin + window.location.pathname;
+
+        if (keys.left || keys.right) {
+            state.bounceMultiplier = 0; 
+            updateBounceUI();
+        }
+
+        if (keys.left) player.vx -= config.moveSpeed * 0.15;
+        if (keys.right) player.vx += config.moveSpeed * 0.15;
+
+        player.vx *= config.friction;
+        if (player.vx > config.maxSpeed) player.vx = config.maxSpeed;
+        if (player.vx < -config.maxSpeed) player.vx = -config.maxSpeed;
+
+        player.vy += config.gravity;
+
+        // Gerak X & Benturan Dinding (Platform)
+        player.x += player.vx;
+        for (let p of platforms) {
+            if (checkRectCollision(player.x, player.y, player.radius, p)) {
+                if (player.vx > 0) player.x = p.x - player.radius;
+                else if (player.vx < 0) player.x = p.x + p.w + player.radius;
+                player.vx = 0;
+            }
+        }
+
+        // --- ATURAN KEMATIAN: TERTINGGAL KAMERA ---
+        // Jika pemain terdorong melewati sisi kiri layar, Game Over!
+        if (player.x - player.radius < state.cameraX) {
+            triggerGameOver("Tertinggal Kamera!");
+            return;
+        }
+
+        // Cegah pemain lari menembus sisi kanan layar
+        if (player.x + player.radius > state.cameraX + canvas.width) {
+            player.x = state.cameraX + canvas.width - player.radius;
+            player.vx = 0;
+        }
+
+        // Gerak Y & Auto-Bounce
+        player.y += player.vy;
+        let hitFloor = false;
+
+        // Benturan dengan lantai dasar abadi
+        if (player.y + player.radius >= config.floorY) {
+            player.y = config.floorY - player.radius;
+            hitFloor = true;
+        }
+
+        // Benturan Platform Atas Bawah
+        for (let p of platforms) {
+            if (checkRectCollision(player.x, player.y, player.radius, p)) {
+                if (player.vy > 0) { 
+                    player.y = p.y - player.radius;
+                    hitFloor = true;
+                } else if (player.vy < 0) { 
+                    player.y = p.y + p.h + player.radius;
+                    player.vy = 0;
+                }
+            }
+        }
+
+        // --- SISTEM PANTULAN & EXTRA BOOST (UP) ---
+        if (hitFloor) {
+            if (!keys.left && !keys.right && Math.abs(player.vx) < 1) {
+                state.bounceMultiplier = Math.min(state.bounceMultiplier + 1, config.maxBounces);
+            } else {
+                state.bounceMultiplier = 0;
+            }
+            updateBounceUI();
+
+            // Hitung tinggi dasar pantulan
+            let finalJumpSpeed = config.baseJump + (state.bounceMultiplier * config.bounceIncrement);
+            
+            // JIKA MENEKAN PANAH ATAS (UP), BERIKAN BOOST LOMPATAN
+            if (keys.up) {
+                finalJumpSpeed += config.upBoost;
+                
+                // Tambahkan efek visual debu/ledakan kecil jika ditekan (opsional)
+                // ctx.fillStyle = "white"; dst..
+            }
+
+            player.vy = finalJumpSpeed;
+        }
+
+        // Logika Musuh
+        for (let e of enemies) {
+            if (e.type === 'vertical') {
+                e.y += e.speed * e.dir;
+                if (e.y < e.minY) { e.y = e.minY; e.dir = 1; }
+                if (e.y > e.maxY) { e.y = e.maxY; e.dir = -1; }
+            } else if (e.type === 'horizontal') {
+                e.x += e.speed;
+            }
+            
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < player.radius + e.r - 4) { 
+                triggerGameOver("Menabrak Musuh!");
+                return;
+            }
+        }
+
+        // Logika Duri
+        for (let s of spikes) {
+            if (checkRectCollision(player.x, player.y, player.radius - 3, s)) {
+                triggerGameOver("Terkena Duri!");
+                return;
+            }
+        }
+
+        // Jatuh ke jurang (safety backup)
+        if (player.y > canvas.height + 200) {
+            triggerGameOver("Jatuh ke Jurang!");
+            return;
+        }
+
+        // Ambil Cincin
+        for (let r of rings) {
+            if (!r.collected) {
+                let dx = player.x - r.x;
+                let dy = player.y - r.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance < player.radius + r.r) {
+                    r.collected = true;
+                    state.score += 1;
+                    scoreDisplay.innerText = state.score;
+                }
+            }
+        }
     }
+
+    // --- GAME LOOP DRAW ---
+    function draw() {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Background bintang parallax
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for(let i=0; i<60; i++) {
+            let px = ((i * 150) - (state.cameraX * 0.1)) % canvas.width;
+            if(px < 0) px += canvas.width;
+            let py = (i * 70) % canvas.height;
+            ctx.fillRect(px, py, 3, 3);
+        }
+
+        ctx.save();
+        ctx.translate(-state.cameraX, 0);
+
+        // Gambar Lantai Abadi
+        ctx.fillStyle = '#1e293b'; 
+        ctx.fillRect(state.cameraX, config.floorY, canvas.width + 100, canvas.height - config.floorY); 
+        ctx.fillStyle = '#475569'; 
+        ctx.fillRect(state.cameraX, config.floorY, canvas.width + 100, 6);
+
+        // Platform
+        for (let p of platforms) {
+            ctx.fillStyle = '#334155'; ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillStyle = '#475569'; ctx.fillRect(p.x, p.y, p.w, 6);
+        }
+
+        // Duri
+        ctx.fillStyle = '#ef4444'; 
+        for (let s of spikes) {
+            let numSpikes = Math.floor(s.w / 20);
+            for (let i = 0; i < numSpikes; i++) {
+                ctx.beginPath();
+                ctx.moveTo(s.x + (i * 20), s.y + s.h);
+                ctx.lineTo(s.x + (i * 20) + 10, s.y);
+                ctx.lineTo(s.x + (i * 20) + 20, s.y + s.h);
+                ctx.fill();
+            }
+        }
+
+        // Cincin
+        ctx.lineWidth = 4;
+        for (let r of rings) {
+            if (!r.collected) {
+                ctx.strokeStyle = '#facc15'; 
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+                
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+                ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+                ctx.lineWidth = 4;
+            }
+        }
+
+        // Musuh (Custom Image or Shape)
+        for (let e of enemies) {
+            if (enemyImgLoaded) {
+                ctx.drawImage(enemyImg, e.x - e.r, e.y - e.r, e.r * 2, e.r * 2);
+            } else {
+                ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+                ctx.fillStyle = '#a855f7'; ctx.fill();
+                
+                ctx.beginPath(); ctx.arc(e.x - 4, e.y - 4, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#f3e8ff'; ctx.fill();
+                
+                ctx.shadowBlur = 10; ctx.shadowColor = '#d8b4fe'; ctx.stroke(); ctx.shadowBlur = 0;
+            }
+        }
+
+        // Player (Custom Image or Shape)
+        if (playerImgLoaded) {
+            // Apply glow if bouncing
+            if (state.bounceMultiplier > 0) {
+                ctx.shadowBlur = 10 + (state.bounceMultiplier * 5);
+                ctx.shadowColor = state.bounceMultiplier === config.maxBounces ? '#ef4444' : '#facc15';
+            }
+            ctx.drawImage(playerImg, player.x - player.radius, player.y - player.radius, player.radius * 2, player.radius * 2);
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            if (state.bounceMultiplier > 0) {
+                ctx.shadowBlur = 10 + (state.bounceMultiplier * 5);
+                ctx.shadowColor = state.bounceMultiplier === config.maxBounces ? '#ef4444' : '#facc15';
+            } else {
+                ctx.shadowBlur = 0;
+            }
+            ctx.fillStyle = '#ef4444'; ctx.fill(); ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(player.x - 4, player.y - 4, player.radius / 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.fill();
+        }
+
+        // Draw "Death Wall" Effect on the left side of the camera
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; // Red warning gradient
+        let grad = ctx.createLinearGradient(state.cameraX, 0, state.cameraX + 50, 0);
+        grad.addColorStop(0, 'rgba(239, 68, 68, 0.6)');
+        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(state.cameraX, 0, 50, canvas.height);
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    // --- GAME CONTROL ---
+    function startGame() {
+        const inputName = playerNameInput.value.trim();
+        if (inputName !== "") playerName = inputName;
+
+        landingPage.style.display = 'none';
+        canvas.style.display = 'block';
+        gameUI.style.display = 'block';
+        if (window.innerWidth <= 768) mobileControls.style.display = 'flex';
+
+        // Play BGM if set
+        if (bgmAudio) {
+            bgmAudio.currentTime = 0;
+            bgmAudio.play().catch(e => console.warn("Auto-play prevented by browser:", e));
+        }
+
+        initWorld();
+        if(!gameLoopId) gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    async function triggerGameOver(reason) {
+        state.isGameOver = true;
+        state.isPlaying = false;
+        
+        if (bgmAudio) bgmAudio.pause();
+        
+        gameUI.style.display = 'none';
+        mobileControls.style.display = 'none';
+        
+        finalScoreDisplay.innerText = state.score;
+        gameOverPage.classList.remove('hidden');
+        
+        // Menambahkan teks alasan kematian ke UI jika diinginkan
+        // console.log("Game Over Reason:", reason); 
+
+        await saveAndLoadLeaderboard();
+    }
+
+    // --- FIREBASE LEADERBOARD LOGIC ---
+    async function saveAndLoadLeaderboard() {
+        const lbList = document.getElementById('leaderboard-list');
+        const loading = document.getElementById('leaderboard-loading');
+        
+        lbList.classList.add('hidden');
+        loading.classList.remove('hidden');
+
+        if (firebaseReady) {
+            try {
+                const user = await authenticateUser();
+                if (user) {
+                    const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                    
+                    await addDoc(lbRef, { name: playerName, score: state.score, timestamp: Date.now() });
+
+                    const snapshot = await getDocs(lbRef);
+                    let allScores = [];
+                    snapshot.forEach(doc => { allScores.push(doc.data()); });
+
+                    allScores.sort((a, b) => b.score - a.score);
+                    const topScores = allScores.slice(0, 50);
+
+                    renderLeaderboardUI(topScores);
+                }
+            } catch (e) {
+                renderLocalLeaderboard();
+            }
+        } else {
+            renderLocalLeaderboard();
+        }
+        
+        loading.classList.add('hidden');
+        lbList.classList.remove('hidden');
+    }
+
+    function renderLocalLeaderboard() {
+        localLeaderboard.push({ name: playerName, score: state.score });
+        localLeaderboard.sort((a, b) => b.score - a.score);
+        renderLeaderboardUI(localLeaderboard.slice(0, 10));
+    }
+
+    function renderLeaderboardUI(data) {
+        const lbList = document.getElementById('leaderboard-list');
+        lbList.innerHTML = '';
+        
+        data.forEach((entry, idx) => {
+            const li = document.createElement('li');
+            li.className = `flex justify-between items-center py-3 px-6 border-b border-slate-700 ${idx === 0 ? 'bg-slate-700/50' : ''}`;
+            
+            const isMe = entry.name === playerName && entry.score === state.score;
+            if(isMe) li.classList.add('bg-slate-700');
+
+            let rankColor = 'text-slate-400';
+            if(idx === 0) rankColor = 'text-yellow-400 font-black text-xl drop-shadow-[0_0_5px_rgba(250,204,21,0.5)]';
+            else if(idx === 1) rankColor = 'text-slate-300 font-bold';
+            else if(idx === 2) rankColor = 'text-amber-600 font-bold';
+
+            li.innerHTML = `
+                <div class="flex items-center">
+                    <span class="w-8 ${rankColor}">#${idx + 1}</span>
+                    <span class="text-white font-medium ml-2 ${isMe ? 'text-red-400 font-bold' : ''}">${entry.name}</span>
+                </div>
+                <span class="text-yellow-400 font-bold">${entry.score} R</span>
+            `;
+            lbList.appendChild(li);
+        });
+    }
+
+    btnStart.addEventListener('click', startGame);
+    btnRestart.addEventListener('click', () => {
+        gameOverPage.classList.add('hidden');
+        startGame();
+    });
+
+    window.addEventListener('resize', () => {
+        canvas.width = Math.min(window.innerWidth, 1200);
+        canvas.height = window.innerHeight;
+    });
+    
+    canvas.width = Math.min(window.innerWidth, 1200);
+    canvas.height = window.innerHeight;
+
 </script>
 </body>
 </html>
