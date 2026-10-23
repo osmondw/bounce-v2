@@ -13,7 +13,7 @@
             background-color: #0f172a;
             color: white;
             font-family: 'Inter', sans-serif;
-            touch-action: none; /* Mencegah layar bergeser/zoom saat disentuh */
+            touch-action: none; 
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
@@ -62,18 +62,18 @@
             bottom: 20px;
             left: 0;
             width: 100%;
-            display: none; /* Akan diubah ke flex saat di HP */
+            display: none; 
             justify-content: space-between;
             padding: 0 20px;
             box-sizing: border-box;
             z-index: 20;
-            pointer-events: none; /* Agar area kosong tidak memblokir sentuhan ke canvas */
+            pointer-events: none; 
         }
         
         .controls-group {
             display: flex;
             gap: 10px;
-            pointer-events: auto; /* Mengaktifkan sentuhan hanya pada area tombol */
+            pointer-events: auto; 
         }
 
         .control-btn {
@@ -95,14 +95,11 @@
             transform: scale(0.9);
         }
         
-        /* Tombol Khusus Lompat & Turun */
         .btn-action-up { background-color: rgba(234, 179, 8, 0.3); border-color: rgba(234, 179, 8, 0.5); color: #fde047; }
         .btn-action-down { background-color: rgba(59, 130, 246, 0.3); border-color: rgba(59, 130, 246, 0.5); color: #93c5fd; }
 
         @media (max-width: 768px) {
             #mobile-controls { display: flex; }
-            
-            /* Penyesuaian UI Kanan Atas (Pause/End) untuk Layar Kecil */
             #top-right-ui {
                 top: 15px;
                 right: 15px;
@@ -159,12 +156,10 @@
     
     <!-- Mobile Touch Controls Layout Kiri Kanan -->
     <div id="mobile-controls">
-        <!-- Grup Kiri: Maju Mundur -->
         <div class="controls-group">
             <div class="control-btn" id="btn-left">←</div>
             <div class="control-btn" id="btn-right">→</div>
         </div>
-        <!-- Grup Kanan: Atas Bawah -->
         <div class="controls-group">
             <div class="control-btn btn-action-down" id="btn-down">↓</div>
             <div class="control-btn btn-action-up" id="btn-up">↑</div>
@@ -251,6 +246,20 @@
         try {
             supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
             dbReady = true;
+            
+            // --- Fitur Realtime Listener Supabase ---
+            // Memantau tabel leaderboard, jika ada skor baru masuk, leaderboard otomatis di-refresh
+            supabase
+              .channel('public:leaderboard')
+              .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, payload => {
+                  const gameOverPageUI = document.getElementById('game-over-page');
+                  // Hanya refresh visual jika layar game over (leaderboard) sedang terbuka
+                  if (gameOverPageUI && !gameOverPageUI.classList.contains('hidden')) {
+                      refreshLeaderboard();
+                  }
+              })
+              .subscribe();
+              
         } catch (e) {
             console.error("Supabase init failed", e);
         }
@@ -279,7 +288,9 @@
     const bouncePowerDisplay = document.getElementById('bounce-power-display');
     const finalScoreDisplay = document.getElementById('final-score');
     
-    let localLeaderboard = [ { name: "Creator", score: 100 }, { name: "ProRunner", score: 50 } ];
+    // MENGHAPUS CREATOR & PRORUNNER
+    let localLeaderboard = []; 
+    
     let playerName = "Player";
     let gameLoopId;
 
@@ -319,7 +330,6 @@
         if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true;
         if (e.key === 'ArrowDown' || e.key === 's') keys.down = true;
         
-        // Pause Toggle
         if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
             togglePause();
         }
@@ -454,7 +464,6 @@
 
         player.vy += config.gravity;
         
-        // Fast Fall Mechanic (Jatuh Cepat) jika tekan BAWAH
         if (keys.down) {
             player.vy += 2.5; 
         }
@@ -696,7 +705,6 @@
         gameUI.style.display = 'block';
         topRightUI.classList.remove('hidden');
         
-        // Memunculkan tombol D-Pad hanya saat di HP
         if (window.innerWidth <= 768) mobileControls.style.display = 'flex';
 
         if (bgmAudio) {
@@ -725,6 +733,24 @@
     }
 
     // --- SUPABASE LEADERBOARD LOGIC ---
+    
+    // Fungsi untuk menarik ulang data leaderboard murni dari Database
+    async function refreshLeaderboard() {
+        if (!dbReady) return;
+        try {
+            const { data: topScores, error: fetchError } = await supabase
+                .from('leaderboard')
+                .select('name, score')
+                .order('score', { ascending: false })
+                .limit(50);
+
+            if (fetchError) throw fetchError;
+            renderLeaderboardUI(topScores);
+        } catch (e) {
+            console.error("Gagal menarik leaderboard dari Supabase:", e);
+        }
+    }
+
     async function saveAndLoadLeaderboard() {
         const lbList = document.getElementById('leaderboard-list');
         const loading = document.getElementById('leaderboard-loading');
@@ -734,24 +760,19 @@
 
         if (dbReady) {
             try {
+                // Insert skor pengguna ke database
                 const { error: insertError } = await supabase
                     .from('leaderboard')
                     .insert([{ name: playerName, score: state.score }]);
                     
                 if (insertError) throw insertError;
 
-                const { data: topScores, error: fetchError } = await supabase
-                    .from('leaderboard')
-                    .select('name, score')
-                    .order('score', { ascending: false })
-                    .limit(50);
-
-                if (fetchError) throw fetchError;
-
-                renderLeaderboardUI(topScores);
+                // Segera tarik data yang baru setelah insert berhasil
+                await refreshLeaderboard();
+                
             } catch (e) {
-                console.error("Supabase Error:", e);
-                renderLocalLeaderboard();
+                console.error("Supabase Error (Kemungkinan RLS aktif/Koneksi putus):", e);
+                renderLocalLeaderboard(); // Fallback jika gagal insert
             }
         } else {
             renderLocalLeaderboard();
@@ -762,6 +783,7 @@
     }
 
     function renderLocalLeaderboard() {
+        // Hanya memunculkan skor pemain saja karena data dummy sudah dihapus
         localLeaderboard.push({ name: playerName, score: state.score });
         localLeaderboard.sort((a, b) => b.score - a.score);
         renderLeaderboardUI(localLeaderboard.slice(0, 10));
@@ -770,6 +792,12 @@
     function renderLeaderboardUI(data) {
         const lbList = document.getElementById('leaderboard-list');
         lbList.innerHTML = '';
+        
+        // Jika data kosong
+        if (data.length === 0) {
+            lbList.innerHTML = '<li class="text-center py-4 text-slate-400">Belum ada skor yang tercatat. Jadilah yang pertama!</li>';
+            return;
+        }
         
         data.forEach((entry, idx) => {
             const li = document.createElement('li');
