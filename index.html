@@ -26,20 +26,17 @@
 <div class="card">
     <h2>Kirim File P2P</h2>
     
-    <!-- Tampilan awal / Host -->
     <div id="setupSection">
         <p id="instructionText">Buat link untuk mulai membagikan file secara langsung.</p>
         <button id="createLinkBtn" onclick="createRoom()">Buat Link Share</button>
     </div>
 
-    <!-- Tampilan Link (Khusus Host) -->
     <div id="linkContainer">
         <p><strong>Link Akses:</strong></p>
         <p id="shareLinkText"></p>
         <button class="btn-copy" onclick="copyLink()">Salin Link</button>
     </div>
 
-    <!-- Tampilan Transfer File (Muncul jika terhubung) -->
     <div id="fileSection" style="display:none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
         <p>Status: <span id="status">Menunggu penerima membuka link...</span></p>
         <input type="file" id="fileInput">
@@ -57,7 +54,9 @@
     // --- KONFIGURASI SUPABASE ---
     const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdXVzcHd1Znd6Y3VrZHVyaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MTg5MDcsImV4cCI6MjEwODI5NDkwN30.Ej-jim68n4OPNZqDMVN3OLJS7sgVXLyM75A8KWDoNec'; 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    // Perbaikan: Ubah nama variabel agar tidak bentrok dengan CDN bawaan browser
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // --- VARIABEL GLOBAL ---
     let peerConnection;
@@ -67,11 +66,10 @@
     let receivedSize = 0;
     let incomingFileInfo = null;
     let inactivityTimer = null;
-    const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 Menit dalam milidetik
+    const INACTIVITY_LIMIT = 30 * 60 * 1000; 
 
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-    // --- INISIALISASI (Cek apakah user membuka link share) ---
     window.onload = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
@@ -81,7 +79,6 @@
         }
     };
 
-    // --- MANAJEMEN TIMER ---
     function resetActivityTimer() {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
@@ -90,7 +87,6 @@
         }, INACTIVITY_LIMIT);
     }
 
-    // --- 1. MEMBUAT LINK (HOST) ---
     function createRoom() {
         const roomId = Math.random().toString(36).substring(2, 10);
         const shareLink = window.location.origin + window.location.pathname + '?room=' + roomId;
@@ -111,7 +107,6 @@
         alert('Link disalin!');
     }
 
-    // --- 2. BERGABUNG VIA LINK (CLIENT) ---
     function joinRoom(roomId) {
         document.getElementById('fileSection').style.display = 'block';
         document.getElementById('status').innerText = 'Menghubungkan ke pengirim...';
@@ -119,16 +114,15 @@
         resetActivityTimer();
     }
 
-    // --- 3. SIGNALING SUPABASE ---
     function connectSupabase(roomId, isHost) {
-        roomChannel = supabase.channel('room-' + roomId, {
+        // Menggunakan supabaseClient yang baru
+        roomChannel = supabaseClient.channel('room-' + roomId, {
             config: { broadcast: { self: false } }
         });
 
         roomChannel.on('broadcast', { event: 'signal' }, ({ payload }) => handleSignalingData(payload))
                    .subscribe(async (status) => {
                        if (status === 'SUBSCRIBED' && !isHost) {
-                           // Client memberi tahu Host bahwa ia masuk
                            roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'join' } });
                        }
                    });
@@ -158,7 +152,6 @@
         }
     }
 
-    // --- 4. WEBRTC P2P ---
     function initWebRTC() {
         peerConnection = new RTCPeerConnection(rtcConfig);
         peerConnection.onicecandidate = event => {
@@ -181,7 +174,7 @@
         };
 
         dataChannel.onmessage = event => {
-            resetActivityTimer(); // Reset timer setiap ada data masuk
+            resetActivityTimer(); 
             if (typeof event.data === 'string') {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'header') {
@@ -207,7 +200,6 @@
         };
     }
 
-    // --- 5. TRANSFER FILE ---
     function sendFile() {
         const file = document.getElementById('fileInput').files[0];
         if (!file) return alert('Pilih file dulu!');
@@ -255,16 +247,14 @@
         window.URL.revokeObjectURL(url);
     }
 
-    // --- 6. PEMUTUSAN KONEKSI ---
     function disconnectAll(broadcastDisconnect = true) {
         if (broadcastDisconnect && dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify({ type: 'disconnect' }));
         }
         if (peerConnection) peerConnection.close();
-        if (roomChannel) supabase.removeChannel(roomChannel);
+        if (roomChannel) supabaseClient.removeChannel(roomChannel); // Menggunakan supabaseClient yang baru
         if (inactivityTimer) clearTimeout(inactivityTimer);
         
-        // Hapus parameter URL dan muat ulang halaman ke keadaan awal
         window.location.href = window.location.origin + window.location.pathname;
     }
 </script>
