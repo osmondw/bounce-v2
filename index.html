@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P File Share (WebRTC)</title>
+    <!-- Memuat SDK Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        input, button { padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; width: 90%; font-size: 16px; }
+        button { background: #0070f3; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background: #005bb5; }
+        #progressContainer { display: none; margin-top: 20px; }
+        progress { width: 100%; height: 20px; }
+        #status { margin-top: 10px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Kirim File P2P</h2>
+    <p>Masukkan PIN yang sama di HP dan PC untuk terhubung.</p>
+    
+    <input type="text" id="roomIdInput" placeholder="Masukkan 5 Digit PIN" maxlength="5">
+    <button id="connectBtn" onclick="connectToRoom()">1. Hubungkan Perangkat</button>
+    
+    <div id="fileSection" style="display:none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+        <p>Status: <span id="status">Menunggu koneksi...</span></p>
+        <input type="file" id="fileInput">
+        <button onclick="sendFile()">2. Kirim File</button>
+    </div>
+
+    <div id="progressContainer">
+        <p id="progressText">Mentransfer: 0%</p>
+        <progress id="progressBar" value="0" max="100"></progress>
+    </div>
+</div>
+
+<script>
+    // --- KONFIGURASI SUPABASE ---
+    // GANTI dengan URL dan Key dari dashboard Supabase Anda!
+    const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_8PJEoDao_RHmPBImG-pU6w_wJSLFQMC'; 
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // --- VARIABEL WEBRTC ---
+    let peerConnection;
+    let dataChannel;
+    let roomChannel;
+    let isInitiator = false;
+
+    // Kumpulan file yang diterima (Chunks)
+    let receiveBuffer = [];
+    let receivedSize = 0;
+    let incomingFileInfo = null;
+
+    // STUN Server gratis dari Google
+    const rtcConfig = {
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    // --- 1. PROSES SIGNALING (SUPABASE REALTIME) ---
+    async function connectToRoom() {
+        const roomId = document.getElementById('roomIdInput').value;
+        if(roomId.length < 3) return alert('Masukkan PIN minimal 3 digit');
+
+        document.getElementById('connectBtn').innerText = "Menghubungkan...";
+        document.getElementById('fileSection').style.display = "block";
+
+        // Buat channel Realtime di Supabase
+        roomChannel = supabase.channel('room-' + roomId, {
+            config: { broadcast: { self: false } }
+        });
+
+        roomChannel.on('broadcast', { event: 'signal' }, ({ payload }) => handleSignalingData(payload))
+                   .subscribe(async (status) => {
+                       if (status === 'SUBSCRIBED') {
+                           // Orang yang baru masuk akan mengirim sinyal 'join'
+                           roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'join' } });
+                       }
+                   });
+    }
+
+    // Menangani pesan dari Supabase
+    async function handleSignalingData(data) {
+        if (!peerConnection) initWebRTC();
+
+        if (data.type === 'join') {
+            // Ada yang bergabung, PC ini bertindak sebagai Initiator
+            isInitiator = true;
+            dataChannel = peerConnection.createDataChannel('fileTransfer');
+            setupDataChannel();
+            
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer.sdp } });
+        } 
+        else if (data.type === 'offer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', sdp: answer.sdp } });
+        } 
+        else if (data.type === 'answer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+        } 
+        else if (data.type === 'ice-candidate') {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    }
+
+    // --- 2. PROSES WEBRTC (P2P) ---
+    function initWebRTC() {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        // Jika menemukan rute jaringan (ICE), kirim ke perangkat sebelah
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'ice-candidate', candidate: event.candidate } });
+            }
+        };
+
+        // Menerima Data Channel dari perangkat sebelah
+        peerConnection.ondatachannel = event => {
+            dataChannel = event.channel;
+            setupDataChannel();
+        };
+    }
+
+    function setupDataChannel() {
+        dataChannel.binaryType = 'arraybuffer';
+        
+        dataChannel.onopen = () => {
+            document.getElementById('status').innerText = "✅ Perangkat Terhubung (P2P Aktif)!";
+            document.getElementById('status').style.color = "green";
+        };
+
+        dataChannel.onmessage = event => {
+            // Jika menerima string (Metadata file)
+            if (typeof event.data === 'string') {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'header') {
+                    incomingFileInfo = msg;
+                    receiveBuffer = [];
+                    receivedSize = 0;
+                    document.getElementById('progressContainer').style.display = 'block';
+                } else if (msg.type === 'done') {
+                    // Semua chunk diterima, gabungkan jadi file
+                    const blob = new Blob(receiveBuffer);
+                    downloadFile(blob, incomingFileInfo.name);
+                    document.getElementById('progressText').innerText = "Penerimaan Selesai!";
+                }
+            } 
+            // Jika menerima binary (Potongan File / Chunk)
+            else {
+                receiveBuffer.push(event.data);
+                receivedSize += event.data.byteLength;
+                
+                const percent = Math.round((receivedSize / incomingFileInfo.size) * 100);
+                document.getElementById('progressBar').value = percent;
+                document.getElementById('progressText').innerText = `Menerima: ${percent}%`;
+            }
+        };
+    }
+
+    // --- 3. PROSES PENGIRIMAN FILE (CHUNKING) ---
+    function sendFile() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return alert('Pilih file dulu!');
+        if (!dataChannel || dataChannel.readyState !== 'open') return alert('Koneksi P2P belum siap!');
+
+        document.getElementById('progressContainer').style.display = 'block';
+
+        // 1. Kirim informasi awal (Nama & Ukuran)
+        dataChannel.send(JSON.stringify({ type: 'header', name: file.name, size: file.size }));
+
+        // 2. Potong file dan kirim (Chunking)
+        const chunkSize = 16384; // 16 KB per potong (Aman untuk WebRTC)
+        let offset = 0;
+
+        const reader = new FileReader();
+        reader.onload = e => {
+            dataChannel.send(e.target.result);
+            offset += e.target.result.byteLength;
+            
+            const percent = Math.round((offset / file.size) * 100);
+            document.getElementById('progressBar').value = percent;
+            document.getElementById('progressText').innerText = `Mengirim: ${percent}%`;
+
+            if (offset < file.size) {
+                readSlice(offset);
+            } else {
+                dataChannel.send(JSON.stringify({ type: 'done' })); // Kirim tanda selesai
+                document.getElementById('progressText').innerText = "Pengiriman Sukses!";
+            }
+        };
+
+        const readSlice = o => {
+            const slice = file.slice(offset, o + chunkSize);
+            reader.readAsArrayBuffer(slice);
+        };
+        readSlice(0);
+    }
+
+    // Fungsi pembantu untuk otomatis download di perangkat penerima
+    function downloadFile(blob, fileName) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+</body>
+</html>
