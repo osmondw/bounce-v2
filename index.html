@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
         input, button { padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; width: 90%; font-size: 16px; box-sizing: border-box; }
         button { background: #0070f3; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background: #005bb5; }
@@ -15,10 +15,19 @@
         .btn-danger:hover { background: #c82333; }
         .btn-copy { background: #28a745; }
         .btn-copy:hover { background: #218838; }
+        .btn-download { background: #17a2b8; width: auto; padding: 5px 15px; margin: 0; font-size: 14px; }
+        .btn-download:hover { background: #138496; }
         #progressContainer { display: none; margin-top: 20px; }
         progress { width: 100%; height: 20px; }
         #status { margin-top: 10px; font-weight: bold; color: #333; }
         #linkContainer { display: none; margin: 15px 0; padding: 10px; background: #e9ecef; border-radius: 5px; word-break: break-all; }
+        
+        /* Gaya untuk Wadah Riwayat File */
+        #historySection { display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: left; }
+        #historySection h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        #fileList { list-style-type: none; padding: 0; margin: 0; }
+        #fileList li { background: #f8f9fa; margin-bottom: 10px; padding: 12px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        .file-info { display: flex; align-items: center; gap: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -50,12 +59,18 @@
     </div>
 </div>
 
+<!-- Wadah / Space untuk file yang dikirim dan diterima -->
+<div id="historySection">
+    <h3>Riwayat File Bersama</h3>
+    <ul id="fileList">
+        <!-- Daftar file akan muncul di sini -->
+    </ul>
+</div>
+
 <script>
     // --- KONFIGURASI SUPABASE ---
     const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdXVzcHd1Znd6Y3VrZHVyaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MTg5MDcsImV4cCI6MjEwODI5NDkwN30.Ej-jim68n4OPNZqDMVN3OLJS7sgVXLyM75A8KWDoNec'; 
-    
-    // Perbaikan: Ubah nama variabel agar tidak bentrok dengan CDN bawaan browser
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // --- VARIABEL GLOBAL ---
@@ -102,8 +117,7 @@
     }
 
     function copyLink() {
-        const link = document.getElementById('shareLinkText').innerText;
-        navigator.clipboard.writeText(link);
+        navigator.clipboard.writeText(document.getElementById('shareLinkText').innerText);
         alert('Link disalin!');
     }
 
@@ -115,7 +129,6 @@
     }
 
     function connectSupabase(roomId, isHost) {
-        // Menggunakan supabaseClient yang baru
         roomChannel = supabaseClient.channel('room-' + roomId, {
             config: { broadcast: { self: false } }
         });
@@ -140,25 +153,21 @@
                 roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer.sdp } });
             } 
             else if (data.type === 'offer') {
-                // Cegah error jika state tidak stabil
                 if (peerConnection.signalingState !== 'stable') return; 
-                
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 roomChannel.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', sdp: answer.sdp } });
             } 
             else if (data.type === 'answer') {
-                // FIX: Hanya proses answer jika PC sedang menunggu jawaban (have-local-offer)
                 if (peerConnection.signalingState !== 'have-local-offer') return; 
-                
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
             } 
             else if (data.type === 'ice-candidate') {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             }
         } catch (error) {
-            console.error("WebRTC State Error diabaikan:", error);
+            console.error("WebRTC Error:", error);
         }
     }
 
@@ -192,10 +201,13 @@
                     receiveBuffer = [];
                     receivedSize = 0;
                     document.getElementById('progressContainer').style.display = 'block';
+                    document.getElementById('progressBar').value = 0;
                 } else if (msg.type === 'done') {
+                    // Poin 1 & 2: Buat file dan masukkan ke wadah riwayat
                     const blob = new Blob(receiveBuffer);
-                    downloadFile(blob, incomingFileInfo.name);
+                    addFileToHistory(incomingFileInfo.name, blob, 'received');
                     document.getElementById('progressText').innerText = "Penerimaan Selesai!";
+                    setTimeout(() => document.getElementById('progressContainer').style.display = 'none', 3000);
                 } else if (msg.type === 'disconnect') {
                     alert("Koneksi diputus oleh perangkat lain.");
                     disconnectAll(false);
@@ -235,6 +247,10 @@
             } else {
                 dataChannel.send(JSON.stringify({ type: 'done' }));
                 document.getElementById('progressText').innerText = "Pengiriman Sukses!";
+                
+                // Poin 2: Tampilkan di wadah riwayat bahwa file sukses terkirim
+                addFileToHistory(file.name, file, 'sent');
+                setTimeout(() => document.getElementById('progressContainer').style.display = 'none', 3000);
                 resetActivityTimer();
             }
         };
@@ -246,15 +262,27 @@
         readSlice(0);
     }
 
-    function downloadFile(blob, fileName) {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
+    // --- FUNGSI BARU: Menambahkan File ke Wadah Riwayat ---
+    function addFileToHistory(fileName, fileOrBlob, type) {
+        document.getElementById('historySection').style.display = 'block';
+        const list = document.getElementById('fileList');
+        const li = document.createElement('li');
+        
+        if (type === 'received') {
+            const url = window.URL.createObjectURL(fileOrBlob);
+            li.innerHTML = `
+                <div class="file-info">📥 <strong>${fileName}</strong></div> 
+                <a href="${url}" download="${fileName}"><button class="btn-download">Unduh</button></a>
+            `;
+        } else {
+            li.innerHTML = `
+                <div class="file-info">📤 <strong>${fileName}</strong></div> 
+                <span style="color: green; font-size: 0.9em; font-weight: bold;">✓ Terkirim</span>
+            `;
+        }
+        
+        // Memasukkan file terbaru di urutan paling atas
+        list.insertBefore(li, list.firstChild);
     }
 
     function disconnectAll(broadcastDisconnect = true) {
@@ -262,7 +290,7 @@
             dataChannel.send(JSON.stringify({ type: 'disconnect' }));
         }
         if (peerConnection) peerConnection.close();
-        if (roomChannel) supabaseClient.removeChannel(roomChannel); // Menggunakan supabaseClient yang baru
+        if (roomChannel) supabaseClient.removeChannel(roomChannel); 
         if (inactivityTimer) clearTimeout(inactivityTimer);
         
         window.location.href = window.location.origin + window.location.pathname;
