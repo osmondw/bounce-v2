@@ -186,3 +186,810 @@
     .locked-icon {
         position: absolute;
         font-size: 20px;
+        display: none;
+    }
+    .skin-item.locked .locked-icon { display: block; }
+
+    @media (max-width: 768px) {
+        #mobile-controls { display: flex; }
+        #top-right-ui { top: 15px; right: 15px; gap: 8px; }
+        #top-right-ui button { padding: 6px 10px; font-size: 14px; }
+        #game-ui h1 { font-size: 1.5rem; }
+        .bouncing-ball-intro, .bouncing-ball-shadow { display: none; }
+    }
+
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- 1. Landing Page -->
+    <div id="landing-page" class="overlay flex-col">
+        <div class="bouncing-ball-shadow hidden md:block"></div>
+        <div class="bouncing-ball-intro hidden md:block"></div>
+        
+        <div class="text-center mb-6 z-10">
+            <h1 class="text-5xl md:text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
+            <h2 class="text-2xl md:text-3xl font-bold text-yellow-400">CLASSIC 2.0</h2>
+        </div>
+        
+        <div id="landing-content-wrapper">
+            
+            <!-- PANEL KIRI: Skin Selector -->
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700 flex flex-col w-11/12 md:w-auto md:min-w-[250px]">
+                <h3 class="text-white text-center font-bold mb-4 text-sm md:text-base border-b border-slate-600 pb-2">Pilih Skin Bola</h3>
+                <p id="player-status-text" class="text-xs text-yellow-400 text-center mb-4 h-4">Ketik nama untuk cek unlock skin</p>
+                
+                <div id="skin-list" class="flex md:flex-col flex-wrap justify-center gap-4">
+                    <!-- Skins akan di-generate via JavaScript -->
+                </div>
+            </div>
+
+            <!-- PANEL KANAN: Login Form -->
+            <div class="bg-slate-800 p-6 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md flex flex-col justify-center">
+                <p class="text-slate-300 mb-4 text-center text-sm md:text-base">Masukkan nama pemain</p>
+                <input type="text" id="player-name" placeholder="Nama..." maxlength="15"
+                    class="w-full px-4 py-3 rounded-lg bg-slate-900 border border-slate-600 text-white focus:outline-none focus:border-red-500 mb-6 text-center text-xl font-bold uppercase">
+                <button id="btn-start" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                    MULAI BERMAIN
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- 2. Game UI Overlay Kiri Atas -->
+    <div id="game-ui">
+        <h1 class="text-3xl md:text-4xl font-black text-yellow-400 drop-shadow-md">Rings: <span id="score-display">0</span></h1>
+        <p class="text-xs md:text-sm font-bold text-white mt-1">Bounce Power: <span id="bounce-power-display" class="text-green-400">Lv. 0</span></p>
+    </div>
+
+    <!-- UI Pause & End Game Kanan Atas -->
+    <div id="top-right-ui" class="absolute top-5 right-5 z-10 hidden flex gap-2 pointer-events-auto">
+        <button id="btn-pause" class="bg-slate-800/80 border border-slate-600 text-white px-3 md:px-4 py-2 rounded-lg backdrop-blur-md hover:bg-slate-700 font-bold transition shadow-lg flex items-center gap-1">
+            <span class="text-yellow-400 font-black">||</span> <span class="hidden md:inline">PAUSE</span>
+        </button>
+        <button id="btn-end" class="bg-red-600/80 border border-red-500 text-white px-3 md:px-4 py-2 rounded-lg backdrop-blur-md hover:bg-red-500 font-bold transition shadow-lg flex items-center gap-1">
+            <span class="font-black">⏹</span> <span class="hidden md:inline">EXIT</span>
+        </button>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" width="1000" height="600"></canvas>
+    
+    <!-- Mobile Touch Controls Layout -->
+    <div id="mobile-controls">
+        <div class="controls-group">
+            <div class="control-btn" id="btn-left">←</div>
+            <div class="control-btn" id="btn-right">→</div>
+        </div>
+        <div class="controls-group">
+            <div class="control-btn btn-action-down" id="btn-down">↓</div>
+            <div class="control-btn btn-action-up" id="btn-up">↑</div>
+        </div>
+    </div>
+
+    <!-- Pause Menu Page -->
+    <div id="pause-page" class="overlay hidden z-[60]">
+        <h1 class="text-5xl md:text-6xl font-black text-white mb-2 drop-shadow-lg tracking-widest">PAUSED</h1>
+        <p class="text-lg md:text-xl text-slate-300 mb-8 font-medium">GAME PAUSED</p>
+        <div class="flex flex-col gap-4 w-10/12 max-w-xs">
+            <button id="btn-resume" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+                CONTINUE
+            </button>
+            <button id="btn-end-pause" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                EXIT GAME
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. Game Over & Leaderboard Page -->
+    <div id="game-over-page" class="overlay hidden z-[70] flex-col">
+        <h1 class="text-5xl font-black text-red-600 mb-2">GAME OVER</h1>
+        <h2 class="text-xl md:text-2xl text-white mb-6">Your Score: <span id="final-score" class="text-yellow-400 font-bold">0</span></h2>
+        
+        <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md overflow-hidden flex flex-col h-[300px] md:h-[350px]">
+            <div class="bg-slate-900 py-3 text-center border-b border-slate-700 text-yellow-400 font-bold tracking-widest text-sm md:text-base">
+                GLOBAL LEADERBOARD
+            </div>
+            <div id="leaderboard-loading" class="flex-1 flex justify-center items-center text-slate-400 text-sm">
+                Loading Score...
+            </div>
+            <ul id="leaderboard-list" class="flex-1 overflow-y-auto scrollbar-hide p-0 m-0 hidden text-sm md:text-base">
+                <!-- Leaderboard items injected here -->
+            </ul>
+        </div>
+        
+        <button id="btn-restart" class="mt-6 md:mt-8 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 md:px-10 rounded-lg transition-all shadow-lg shadow-blue-500/50">
+            PLAY AGAIN
+        </button>
+    </div>
+
+</div>
+
+<!-- Firebase & Game Engine Logic -->
+<script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+    const SUPABASE_URL = 'https://lsuuspwufwzcukduriwp.supabase.co'; 
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdXVzcHd1Znd6Y3VrZHVyaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MTg5MDcsImV4cCI6MjEwODI5NDkwN30.Ej-jim68n4OPNZqDMVN3OLJS7sgVXLyM75A8KWDoNec'; 
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    // --- AUDIO SYSTEM CONFIGURATION ---
+    // BGM Arcade Puzzler retro
+    const CUSTOM_BGM_URL = "https://soundimage.org/wp-content/uploads/2016/04/Arcade-Puzzler.mp3"; 
+    let bgmAudio = new Audio(CUSTOM_BGM_URL);
+    bgmAudio.loop = true;
+    bgmAudio.volume = 0.3;
+
+    // Web Audio API untuk SFX (Jump, Coin, Death)
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playSFX(type) {
+        if(!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        const now = audioCtx.currentTime;
+        if(type === 'jump') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'coin') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.setValueAtTime(1200, now + 0.05);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'death') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        }
+    }
+
+    let supabase = null;
+    let dbReady = false;
+
+    if (SUPABASE_URL !== "" && SUPABASE_KEY !== "") {
+        try {
+            supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+            dbReady = true;
+            supabase.channel('public:leaderboard').on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, payload => {
+                  const gameOverPageUI = document.getElementById('game-over-page');
+                  if (gameOverPageUI && !gameOverPageUI.classList.contains('hidden')) {
+                      refreshLeaderboard();
+                  }
+              }).subscribe();
+        } catch (e) {
+            console.error("Supabase init failed", e);
+        }
+    }
+
+    // --- SKIN CONFIGURATION ---
+    const SKINS = [
+        { id: 'red', name: 'Default', color: '#ef4444', req: 0 },
+        { id: 'blue', name: 'Water', color: '#3b82f6', req: 10 },
+        { id: 'green', name: 'Slime', color: '#22c55e', req: 30 },
+        { id: 'purple', name: 'Void', color: '#a855f7', req: 50 },
+        { id: 'gold', name: 'Legend', color: '#fbbf24', req: 100 }
+    ];
+    let currentSkinColor = SKINS[0].color;
+    let playerMaxScore = 0;
+    
+    const skinListContainer = document.getElementById('skin-list');
+    const playerStatusText = document.getElementById('player-status-text');
+
+    function renderSkinUI() {
+        skinListContainer.innerHTML = '';
+        SKINS.forEach(skin => {
+            const isUnlocked = playerMaxScore >= skin.req;
+            const isSelected = currentSkinColor === skin.color;
+            
+            const div = document.createElement('div');
+            div.className = `skin-item ${isUnlocked ? '' : 'locked'} ${isSelected ? 'selected' : ''}`;
+            div.innerHTML = `
+                <div class="skin-circle shadow-lg" style="background: radial-gradient(circle at 35% 35%, #ffffff, ${skin.color});">
+                    <span class="locked-icon">🔒</span>
+                </div>
+                <span class="text-white text-xs mt-1 font-bold">${skin.name}</span>
+                <span class="text-slate-400 text-[10px]">${skin.req > 0 ? `Req: ${skin.req}` : 'Free'}</span>
+            `;
+            
+            if(isUnlocked) {
+                div.onclick = () => {
+                    currentSkinColor = skin.color;
+                    renderSkinUI(); // Refresh selection outline
+                };
+            }
+            skinListContainer.appendChild(div);
+        });
+    }
+
+    // Debounce function to prevent spamming Supabase
+    let debounceTimer;
+    const playerNameInput = document.getElementById('player-name');
+    playerNameInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const name = e.target.value.trim().toUpperCase();
+        
+        if(name.length === 0) {
+            playerMaxScore = 0;
+            playerStatusText.innerText = "Ketik nama untuk cek unlock skin";
+            currentSkinColor = SKINS[0].color; // Reset to default
+            renderSkinUI();
+            return;
+        }
+
+        playerStatusText.innerText = "Mengecek database...";
+        
+        debounceTimer = setTimeout(async () => {
+            if(dbReady) {
+                try {
+                    const { data, error } = await supabase
+                        .from('leaderboard')
+                        .select('score')
+                        .ilike('name', name)
+                        .order('score', { ascending: false })
+                        .limit(1);
+                        
+                    if(data && data.length > 0) {
+                        playerMaxScore = data[0].score;
+                        playerStatusText.innerText = `Halo ${name}, Max Skor: ${playerMaxScore}`;
+                    } else {
+                        playerMaxScore = 0;
+                        playerStatusText.innerText = `Pemain Baru: ${name}`;
+                    }
+                    renderSkinUI();
+                } catch(err) {
+                    playerStatusText.innerText = "Gagal mengecek skor";
+                }
+            }
+        }, 800);
+    });
+
+    // Initial render skin
+    renderSkinUI();
+
+    // --- ENGINE SETUP ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const landingPage = document.getElementById('landing-page');
+    const gameUI = document.getElementById('game-ui');
+    const topRightUI = document.getElementById('top-right-ui');
+    const gameOverPage = document.getElementById('game-over-page');
+    const pausePage = document.getElementById('pause-page');
+    const mobileControls = document.getElementById('mobile-controls');
+    
+    const btnStart = document.getElementById('btn-start');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnPause = document.getElementById('btn-pause');
+    const btnEnd = document.getElementById('btn-end');
+    const btnResume = document.getElementById('btn-resume');
+    const btnEndPause = document.getElementById('btn-end-pause');
+
+    const scoreDisplay = document.getElementById('score-display');
+    const bouncePowerDisplay = document.getElementById('bounce-power-display');
+    const finalScoreDisplay = document.getElementById('final-score');
+    
+    let localLeaderboard = []; 
+    let playerName = "PLAYER";
+    let gameLoopId;
+
+    const config = {
+        gravity: 0.6,
+        friction: 0.85,
+        moveSpeed: 16,        
+        maxSpeed: 14,         
+        baseJump: -10,        
+        bounceIncrement: -1.5,
+        upBoost: -5,          
+        maxBounces: 5,        
+        ballRadius: 15,
+        floorY: 550,
+        autoScrollSpeed: 3.5  
+    };
+
+    let state = {
+        score: 0,
+        cameraX: 0,
+        isGameOver: false,
+        isPlaying: false,
+        isPaused: false,
+        bounceMultiplier: 0
+    };
+
+    const keys = { left: false, right: false, up: false, down: false };
+
+    let player = { x: 0, y: 0, vx: 0, vy: 0, radius: config.ballRadius };
+    let platforms = [], spikes = [], rings = [], enemies = [];
+    let latestGenX = 0;
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true;
+        if (e.key === 'ArrowDown' || e.key === 's') keys.down = true;
+        if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = false;
+        if (e.key === 'ArrowDown' || e.key === 's') keys.down = false;
+    });
+
+    const bindTouch = (id, keyName) => {
+        const btn = document.getElementById(id);
+        if(!btn) return;
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+    };
+    bindTouch('btn-left', 'left');
+    bindTouch('btn-right', 'right');
+    bindTouch('btn-up', 'up');
+    bindTouch('btn-down', 'down');
+
+    function initWorld() {
+        platforms = []; spikes = []; rings = []; enemies = [];
+        latestGenX = 500;
+        player = { x: 300, y: 300, vx: 0, vy: 0, radius: config.ballRadius };
+        state.score = 0;
+        state.cameraX = 0;
+        state.bounceMultiplier = 0;
+        state.isGameOver = false;
+        state.isPlaying = true;
+        state.isPaused = false;
+        
+        scoreDisplay.innerText = "0";
+        pausePage.classList.add('hidden');
+        updateBounceUI();
+    }
+
+    function generateChunk(targetX) {
+        while (latestGenX < targetX + 2000) {
+            let chunkWidth = Math.random() * 300 + 200;
+            let startX = latestGenX;
+            
+            if (Math.random() > 0.5) {
+                let pWidth = Math.random() * 150 + 100;
+                let pHeight = 350 + (Math.random() * 100 - 50);
+                platforms.push({ x: startX + 50, y: pHeight, w: pWidth, h: 20 });
+                if(Math.random() > 0.3) rings.push({ x: startX + 50 + pWidth/2, y: pHeight - 40, r: 15, collected: false });
+            }
+
+            if (Math.random() > 0.5) rings.push({ x: startX + chunkWidth / 2, y: config.floorY - 60, r: 15, collected: false });
+
+            if (Math.random() > 0.4 && startX > 1000) {
+                let spikeWidth = 40 + Math.random() * 40;
+                spikes.push({ x: startX + chunkWidth/2, y: config.floorY - 20, w: spikeWidth, h: 20 });
+            }
+
+            if (startX > 1500) {
+                if (Math.random() > 0.6) {
+                    enemies.push({ type: 'vertical', x: startX + 100, y: config.floorY - 100, minY: config.floorY - 250, maxY: config.floorY - 30, speed: 3 + Math.random() * 2, r: 15, dir: 1 });
+                } else if (Math.random() > 0.7) {
+                    enemies.push({ type: 'horizontal', x: startX + chunkWidth, y: config.floorY - 30 - Math.random() * 100, speed: -(2 + Math.random() * 2), r: 15 });
+                }
+            }
+            latestGenX = startX + chunkWidth;
+        }
+    }
+
+    function garbageCollect() {
+        let cutoff = state.cameraX - 500;
+        platforms = platforms.filter(p => p.x + p.w > cutoff);
+        spikes = spikes.filter(s => s.x + s.w > cutoff);
+        rings = rings.filter(r => !r.collected && r.x > cutoff);
+        enemies = enemies.filter(e => e.type === 'horizontal' ? e.x > cutoff - 2000 : e.x > cutoff); 
+    }
+
+    function checkRectCollision(px, py, pr, rect) {
+        return (px + pr > rect.x && px - pr < rect.x + rect.w && py + pr > rect.y && py - pr < rect.y + rect.h);
+    }
+
+    function updateBounceUI() {
+        bouncePowerDisplay.innerText = `Lv. ${state.bounceMultiplier}`;
+        if(state.bounceMultiplier === config.maxBounces) {
+            bouncePowerDisplay.className = "text-red-500 font-black animate-pulse";
+        } else if (state.bounceMultiplier > 0) {
+            bouncePowerDisplay.className = "text-yellow-400 font-bold";
+        } else {
+            bouncePowerDisplay.className = "text-green-400";
+        }
+    }
+
+    function update() {
+        if (state.isGameOver || !state.isPlaying || state.isPaused) return;
+
+        let currentScrollSpeed = config.autoScrollSpeed + (state.score * 0.05);
+        state.cameraX += currentScrollSpeed;
+
+        if (latestGenX < player.x + 2000) {
+            generateChunk(Math.max(player.x, state.cameraX));
+            garbageCollect();
+        }
+
+        if (keys.left || keys.right) {
+            state.bounceMultiplier = 0; 
+            updateBounceUI();
+        }
+
+        if (keys.left) player.vx -= config.moveSpeed * 0.15;
+        if (keys.right) player.vx += config.moveSpeed * 0.15;
+
+        player.vx *= config.friction;
+        if (player.vx > config.maxSpeed) player.vx = config.maxSpeed;
+        if (player.vx < -config.maxSpeed) player.vx = -config.maxSpeed;
+
+        player.vy += config.gravity;
+        if (keys.down) player.vy += 2.5; 
+
+        player.x += player.vx;
+        for (let p of platforms) {
+            if (checkRectCollision(player.x, player.y, player.radius, p)) {
+                if (player.vx > 0) player.x = p.x - player.radius;
+                else if (player.vx < 0) player.x = p.x + p.w + player.radius;
+                player.vx = 0;
+            }
+        }
+
+        if (player.x - player.radius < state.cameraX) {
+            triggerGameOver();
+            return;
+        }
+
+        if (player.x + player.radius > state.cameraX + canvas.width) {
+            player.x = state.cameraX + canvas.width - player.radius;
+            player.vx = 0;
+        }
+
+        player.y += player.vy;
+        let hitFloor = false;
+
+        if (player.y + player.radius >= config.floorY) {
+            player.y = config.floorY - player.radius;
+            hitFloor = true;
+        }
+
+        for (let p of platforms) {
+            if (checkRectCollision(player.x, player.y, player.radius, p)) {
+                if (player.vy > 0) { 
+                    player.y = p.y - player.radius;
+                    hitFloor = true;
+                } else if (player.vy < 0) { 
+                    player.y = p.y + p.h + player.radius;
+                    player.vy = 0;
+                }
+            }
+        }
+
+        if (hitFloor) {
+            if (!keys.left && !keys.right && Math.abs(player.vx) < 1) {
+                state.bounceMultiplier = Math.min(state.bounceMultiplier + 1, config.maxBounces);
+            } else {
+                state.bounceMultiplier = 0;
+            }
+            updateBounceUI();
+
+            let finalJumpSpeed = config.baseJump + (state.bounceMultiplier * config.bounceIncrement);
+            if (keys.up) finalJumpSpeed += config.upBoost;
+            player.vy = finalJumpSpeed;
+            
+            // SFX LOMPAT
+            playSFX('jump');
+        }
+
+        for (let e of enemies) {
+            if (e.type === 'vertical') {
+                e.y += e.speed * e.dir;
+                if (e.y < e.minY) { e.y = e.minY; e.dir = 1; }
+                if (e.y > e.maxY) { e.y = e.maxY; e.dir = -1; }
+            } else if (e.type === 'horizontal') {
+                e.x += e.speed;
+            }
+            
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < player.radius + e.r - 4) { 
+                triggerGameOver();
+                return;
+            }
+        }
+
+        for (let s of spikes) {
+            if (checkRectCollision(player.x, player.y, player.radius - 3, s)) {
+                triggerGameOver();
+                return;
+            }
+        }
+
+        if (player.y > canvas.height + 200) {
+            triggerGameOver();
+            return;
+        }
+
+        for (let r of rings) {
+            if (!r.collected) {
+                let dx = player.x - r.x;
+                let dy = player.y - r.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance < player.radius + r.r) {
+                    r.collected = true;
+                    state.score += 1;
+                    scoreDisplay.innerText = state.score;
+                    // SFX KOIN/CINCIN
+                    playSFX('coin');
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for(let i=0; i<60; i++) {
+            let px = ((i * 150) - (state.cameraX * 0.1)) % canvas.width;
+            if(px < 0) px += canvas.width;
+            let py = (i * 70) % canvas.height;
+            ctx.fillRect(px, py, 3, 3);
+        }
+
+        ctx.save();
+        ctx.translate(-state.cameraX, 0);
+
+        ctx.fillStyle = '#1e293b'; 
+        ctx.fillRect(state.cameraX, config.floorY, canvas.width + 100, canvas.height - config.floorY); 
+        ctx.fillStyle = '#475569'; 
+        ctx.fillRect(state.cameraX, config.floorY, canvas.width + 100, 6);
+
+        for (let p of platforms) {
+            ctx.fillStyle = '#334155'; ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillStyle = '#475569'; ctx.fillRect(p.x, p.y, p.w, 6);
+        }
+
+        ctx.fillStyle = '#ef4444'; 
+        for (let s of spikes) {
+            let numSpikes = Math.floor(s.w / 20);
+            for (let i = 0; i < numSpikes; i++) {
+                ctx.beginPath();
+                ctx.moveTo(s.x + (i * 20), s.y + s.h);
+                ctx.lineTo(s.x + (i * 20) + 10, s.y);
+                ctx.lineTo(s.x + (i * 20) + 20, s.y + s.h);
+                ctx.fill();
+            }
+        }
+
+        ctx.lineWidth = 4;
+        for (let r of rings) {
+            if (!r.collected) {
+                ctx.strokeStyle = '#facc15'; 
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+                ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+                ctx.lineWidth = 4;
+            }
+        }
+
+        for (let e of enemies) {
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#a855f7'; ctx.fill();
+            ctx.beginPath(); ctx.arc(e.x - 4, e.y - 4, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#f3e8ff'; ctx.fill();
+            ctx.shadowBlur = 10; ctx.shadowColor = '#d8b4fe'; ctx.stroke(); ctx.shadowBlur = 0;
+        }
+
+        // --- DRAW PLAYER WITH DYNAMIC SKIN COLOR ---
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        if (state.bounceMultiplier > 0) {
+            ctx.shadowBlur = 10 + (state.bounceMultiplier * 5);
+            ctx.shadowColor = state.bounceMultiplier === config.maxBounces ? '#ef4444' : currentSkinColor;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+        ctx.fillStyle = currentSkinColor; // Implementasi warna skin
+        ctx.fill(); ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(player.x - 4, player.y - 4, player.radius / 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.fill();
+
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+        let grad = ctx.createLinearGradient(state.cameraX, 0, state.cameraX + 50, 0);
+        grad.addColorStop(0, 'rgba(239, 68, 68, 0.6)');
+        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(state.cameraX, 0, 50, canvas.height);
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+        if (state.isGameOver || !state.isPlaying) return;
+        state.isPaused = !state.isPaused;
+        
+        if (state.isPaused) {
+            pausePage.classList.remove('hidden');
+            if (bgmAudio) bgmAudio.pause();
+        } else {
+            pausePage.classList.add('hidden');
+            if (bgmAudio) bgmAudio.play().catch(e => console.warn(e));
+        }
+    }
+
+    function endGameEarly() {
+        if (state.isGameOver || !state.isPlaying) return;
+        state.isPaused = false; 
+        pausePage.classList.add('hidden');
+        triggerGameOver();
+    }
+
+    btnPause.addEventListener('click', togglePause);
+    btnResume.addEventListener('click', togglePause);
+    btnEnd.addEventListener('click', endGameEarly);
+    btnEndPause.addEventListener('click', endGameEarly);
+
+    function startGame() {
+        const inputName = playerNameInput.value.trim().toUpperCase();
+        if (inputName !== "") playerName = inputName;
+
+        landingPage.style.display = 'none';
+        canvas.style.display = 'block';
+        gameUI.style.display = 'block';
+        topRightUI.classList.remove('hidden');
+        
+        if (window.innerWidth <= 768) mobileControls.style.display = 'flex';
+
+        // Inisialisasi & Play Audio (butuh gesture click dari user untuk browser)
+        initAudio();
+        bgmAudio.currentTime = 0;
+        bgmAudio.play().catch(e => console.warn("Auto-play prevented by browser:", e));
+
+        initWorld();
+        if(!gameLoopId) gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    async function triggerGameOver() {
+        state.isGameOver = true;
+        state.isPlaying = false;
+        
+        // SFX KEMATIAN
+        playSFX('death');
+        bgmAudio.pause();
+        
+        gameUI.style.display = 'none';
+        topRightUI.classList.add('hidden');
+        mobileControls.style.display = 'none';
+        
+        finalScoreDisplay.innerText = state.score;
+        gameOverPage.classList.remove('hidden');
+        
+        await saveAndLoadLeaderboard();
+    }
+
+    async function refreshLeaderboard() {
+        if (!dbReady) return;
+        try {
+            const { data: topScores, error: fetchError } = await supabase
+                .from('leaderboard')
+                .select('name, score')
+                .order('score', { ascending: false })
+                .limit(50);
+
+            if (fetchError) throw fetchError;
+            renderLeaderboardUI(topScores);
+        } catch (e) {
+            console.error("Gagal menarik leaderboard:", e);
+        }
+    }
+
+    async function saveAndLoadLeaderboard() {
+        const lbList = document.getElementById('leaderboard-list');
+        const loading = document.getElementById('leaderboard-loading');
+        
+        lbList.classList.add('hidden');
+        loading.classList.remove('hidden');
+
+        if (dbReady) {
+            try {
+                const { error: insertError } = await supabase
+                    .from('leaderboard')
+                    .insert([{ name: playerName, score: state.score }]);
+                    
+                if (insertError) throw insertError;
+                await refreshLeaderboard();
+            } catch (e) {
+                renderLocalLeaderboard(); 
+            }
+        } else {
+            renderLocalLeaderboard();
+        }
+        
+        loading.classList.add('hidden');
+        lbList.classList.remove('hidden');
+    }
+
+    function renderLocalLeaderboard() {
+        localLeaderboard.push({ name: playerName, score: state.score });
+        localLeaderboard.sort((a, b) => b.score - a.score);
+        renderLeaderboardUI(localLeaderboard.slice(0, 10));
+    }
+
+    function renderLeaderboardUI(data) {
+        const lbList = document.getElementById('leaderboard-list');
+        lbList.innerHTML = '';
+        
+        if (data.length === 0) {
+            lbList.innerHTML = '<li class="text-center py-4 text-slate-400">Belum ada skor yang tercatat. Jadilah yang pertama!</li>';
+            return;
+        }
+        
+        data.forEach((entry, idx) => {
+            const li = document.createElement('li');
+            li.className = `flex justify-between items-center py-2 md:py-3 px-4 md:px-6 border-b border-slate-700 ${idx === 0 ? 'bg-slate-700/50' : ''}`;
+            
+            const isMe = entry.name === playerName && entry.score === state.score;
+            if(isMe) li.classList.add('bg-slate-700');
+
+            let rankColor = 'text-slate-400';
+            if(idx === 0) rankColor = 'text-yellow-400 font-black text-lg md:text-xl drop-shadow-[0_0_5px_rgba(250,204,21,0.5)]';
+            else if(idx === 1) rankColor = 'text-slate-300 font-bold';
+            else if(idx === 2) rankColor = 'text-amber-600 font-bold';
+
+            li.innerHTML = `
+                <div class="flex items-center">
+                    <span class="w-6 md:w-8 ${rankColor}">#${idx + 1}</span>
+                    <span class="text-white font-medium ml-2 ${isMe ? 'text-red-400 font-bold' : ''}">${entry.name}</span>
+                </div>
+                <span class="text-yellow-400 font-bold">${entry.score} R</span>
+            `;
+            lbList.appendChild(li);
+        });
+    }
+
+    btnStart.addEventListener('click', startGame);
+    btnRestart.addEventListener('click', () => {
+        gameOverPage.classList.add('hidden');
+        startGame();
+    });
+
+    window.addEventListener('resize', () => {
+        canvas.width = Math.min(window.innerWidth, 1200);
+        canvas.height = window.innerHeight;
+    });
+    
+    canvas.width = Math.min(window.innerWidth, 1200);
+    canvas.height = window.innerHeight;
+
+</script>
+</body>
+</html>
