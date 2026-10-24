@@ -10,7 +10,43 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-/* ... sisa kode Anda di bawahnya ... */
+        /* Animasi Bola Pantul di Landing Page */
+@keyframes bounce-intro {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    45% { transform: translateY(180px) scale(1, 1); }
+    50% { transform: translateY(200px) scale(1.1, 0.8); } /* Efek squish saat menyentuh lantai */
+    55% { transform: translateY(180px) scale(1, 1); }
+}
+
+@keyframes shadow-pulse {
+    0%, 100% { transform: scale(0.5); opacity: 0.2; }
+    50% { transform: scale(1.2); opacity: 0.6; }
+}
+
+.bouncing-ball-intro {
+    position: absolute;
+    right: 15%; 
+    top: 25%;
+    width: 70px;
+    height: 70px;
+    background: radial-gradient(circle at 35% 35%, #fca5a5, #ef4444);
+    border-radius: 50%;
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.5);
+    animation: bounce-intro 1.5s infinite ease-in-out;
+}
+
+.bouncing-ball-shadow {
+    position: absolute;
+    right: 15%;
+    top: calc(25% + 210px);
+    width: 60px;
+    height: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    filter: blur(3px);
+    animation: shadow-pulse 1.5s infinite ease-in-out;
+}
+
         body {
             margin: 0;
             padding: 0;
@@ -127,6 +163,10 @@
     
     <!-- 1. Landing Page -->
     <div id="landing-page" class="overlay">
+        <div class="bouncing-ball-shadow hidden md:block"></div>
+        <div class="bouncing-ball-intro hidden md:block"></div>
+        <h1 class="text-5xl md:text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
+        <h2 class="text-2xl md:text-3xl font-bold text-yellow-400 mb-8">INFINITE 2.0</h2>
         <h1 class="text-5xl md:text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
         <h2 class="text-2xl md:text-3xl font-bold text-yellow-400 mb-8">INFINITE 2.0</h2>
         
