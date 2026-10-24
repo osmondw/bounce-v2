@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bounce Infinite 2.0</title>
-    
-    <!-- Tambahan Favicon (Logo Tab Browser Bola Merah) -->
+    <title>Bounce Classic 2.0</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23ef4444'/><circle cx='35' cy='35' r='15' fill='rgba(255,255,255,0.6)'/></svg>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Animasi Bola Pantul di Landing Page */
-@keyframes bounce-intro {
-    0%, 100% { transform: translateY(0) scale(1, 1); }
-    45% { transform: translateY(180px) scale(1, 1); }
-    50% { transform: translateY(200px) scale(1.1, 0.8); } /* Efek squish saat menyentuh lantai */
-    55% { transform: translateY(180px) scale(1, 1); }
-}
 
-@keyframes shadow-pulse {
-    0%, 100% { transform: scale(0.5); opacity: 0.2; }
-    50% { transform: scale(1.2); opacity: 0.6; }
-}
+    @keyframes bounce-intro {
+        0%, 100% { transform: translateY(0) scale(1, 1); }
+        45% { transform: translateY(180px) scale(1, 1); }
+        50% { transform: translateY(200px) scale(1.1, 0.8); } /* Efek squish saat menyentuh lantai */
+        55% { transform: translateY(180px) scale(1, 1); }
+    }
+
+    @keyframes shadow-pulse {
+        0%, 100% { transform: scale(0.5); opacity: 0.2; }
+        50% { transform: scale(1.2); opacity: 0.6; }
+    }
 
 .bouncing-ball-intro {
     position: absolute;
@@ -166,16 +164,14 @@
         <div class="bouncing-ball-shadow hidden md:block"></div>
         <div class="bouncing-ball-intro hidden md:block"></div>
         <h1 class="text-5xl md:text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
-        <h2 class="text-2xl md:text-3xl font-bold text-yellow-400 mb-8">INFINITE 2.0</h2>
-        <h1 class="text-5xl md:text-6xl font-black text-red-500 mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">BOUNCE</h1>
-        <h2 class="text-2xl md:text-3xl font-bold text-yellow-400 mb-8">INFINITE 2.0</h2>
+        <h2 class="text-2xl md:text-3xl font-bold text-yellow-400 mb-8">CLASSIC 2.0</h2>
         
         <div class="bg-slate-800 p-6 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md text-center">
-            <p class="text-slate-300 mb-6 text-sm md:text-base">Masukan nama antek antek asing</p>
-            <input type="text" id="player-name" placeholder="Nama Pemain" maxlength="15"
+            <p class="text-slate-300 mb-6 text-sm md:text-base">Input Your Name</p>
+            <input type="text" id="player-name" placeholder="Your Name..." maxlength="15"
                 class="w-full px-4 py-3 rounded-lg bg-slate-900 border border-slate-600 text-white focus:outline-none focus:border-red-500 mb-6 text-center text-xl font-bold">
             <button id="btn-start" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
-                MULAI BERMAIN
+                START GAME
             </button>
         </div>
     </div>
@@ -189,10 +185,10 @@
     <!-- UI Pause & End Game Kanan Atas -->
     <div id="top-right-ui" class="absolute top-5 right-5 z-10 hidden flex gap-2 pointer-events-auto">
         <button id="btn-pause" class="bg-slate-800/80 border border-slate-600 text-white px-3 md:px-4 py-2 rounded-lg backdrop-blur-md hover:bg-slate-700 font-bold transition shadow-lg flex items-center gap-1">
-            <span class="text-yellow-400 font-black">||</span> <span class="hidden md:inline">Pause</span>
+            <span class="text-yellow-400 font-black">||</span> <span class="hidden md:inline">PAUSE</span>
         </button>
         <button id="btn-end" class="bg-red-600/80 border border-red-500 text-white px-3 md:px-4 py-2 rounded-lg backdrop-blur-md hover:bg-red-500 font-bold transition shadow-lg flex items-center gap-1">
-            <span class="font-black">⏹</span> <span class="hidden md:inline">Akhiri</span>
+            <span class="font-black">⏹</span> <span class="hidden md:inline">EXIT</span>
         </button>
     </div>
 
@@ -214,13 +210,13 @@
     <!-- Pause Menu Page -->
     <div id="pause-page" class="overlay hidden z-[60]">
         <h1 class="text-5xl md:text-6xl font-black text-white mb-2 drop-shadow-lg tracking-widest">PAUSED</h1>
-        <p class="text-lg md:text-xl text-slate-300 mb-8 font-medium">Permainan Sedang Dijeda</p>
+        <p class="text-lg md:text-xl text-slate-300 mb-8 font-medium">GAME PAUSED</p>
         <div class="flex flex-col gap-4 w-10/12 max-w-xs">
             <button id="btn-resume" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
-                LANJUTKAN
+                CONTINUE
             </button>
             <button id="btn-end-pause" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
-                AKHIRI PERMAINAN
+                EXIT GAME
             </button>
         </div>
     </div>
@@ -228,7 +224,7 @@
     <!-- 3. Game Over & Leaderboard Page -->
     <div id="game-over-page" class="overlay hidden z-[70]">
         <h1 class="text-5xl font-black text-red-600 mb-2">GAME OVER</h1>
-        <h2 class="text-xl md:text-2xl text-white mb-6">Skor Kamu: <span id="final-score" class="text-yellow-400 font-bold">0</span></h2>
+        <h2 class="text-xl md:text-2xl text-white mb-6">Your Score: <span id="final-score" class="text-yellow-400 font-bold">0</span></h2>
         
         <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 w-11/12 max-w-md overflow-hidden flex flex-col h-[300px] md:h-[350px]">
             <div class="bg-slate-900 py-3 text-center border-b border-slate-700 text-yellow-400 font-bold tracking-widest text-sm md:text-base">
@@ -236,7 +232,7 @@
             </div>
             
             <div id="leaderboard-loading" class="flex-1 flex justify-center items-center text-slate-400 text-sm">
-                Memuat skor...
+                Loading Score...
             </div>
             
             <ul id="leaderboard-list" class="flex-1 overflow-y-auto scrollbar-hide p-0 m-0 hidden text-sm md:text-base">
@@ -245,7 +241,7 @@
         </div>
         
         <button id="btn-restart" class="mt-6 md:mt-8 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 md:px-10 rounded-lg transition-all shadow-lg shadow-blue-500/50">
-            MAIN LAGI
+            PLAY AGAIN
         </button>
     </div>
 
