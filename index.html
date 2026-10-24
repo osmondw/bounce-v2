@@ -896,6 +896,7 @@
         await saveAndLoadLeaderboard();
     }
 
+    // Fungsi untuk menarik ulang data leaderboard murni dari Database (Top 10)
     async function refreshLeaderboard() {
         if (!dbReady) return;
         try {
@@ -903,12 +904,12 @@
                 .from('leaderboard')
                 .select('name, score')
                 .order('score', { ascending: false })
-                .limit(50);
+                .limit(10); // DIBATASI HANYA TOP 10
 
             if (fetchError) throw fetchError;
             renderLeaderboardUI(topScores);
         } catch (e) {
-            console.error("Gagal menarik leaderboard:", e);
+            console.error("Gagal menarik leaderboard dari Supabase:", e);
         }
     }
 
@@ -921,13 +922,21 @@
 
         if (dbReady) {
             try {
+                // 1. Insert skor pengguna ke database
                 const { error: insertError } = await supabase
                     .from('leaderboard')
                     .insert([{ name: playerName, score: state.score }]);
                     
                 if (insertError) throw insertError;
+
+                // 2. Panggil fungsi pembersihan database secara diam-diam (RPC)
+                await supabase.rpc('maintain_leaderboard');
+
+                // 3. Tarik data Top 10 terbaru
                 await refreshLeaderboard();
+                
             } catch (e) {
+                console.error("Supabase Error:", e);
                 renderLocalLeaderboard(); 
             }
         } else {
